@@ -198,13 +198,13 @@ def rows(products):
 
 def per_product(rows_iter):
     """Varyant satırlarını ürün başına teke indir (ChatGPT 9 bin satırda 500 veriyordu, 13.11).
-    En düşük fiyatlı stoktaki varyant temsilci olur; renk/beden seçenekleri açıklamaya eklenir."""
+    İlk stoktaki varyant (sayfanın varsayılanı) temsilci olur; renk/beden seçenekleri açıklamaya eklenir."""
     groups = {}
     for r in rows_iter:
         groups.setdefault(r.get("group_id") or r["item_id"], []).append(r)
     for gid, rs in groups.items():
         live = [r for r in rs if r["availability"] == "in_stock"] or rs
-        pick = min(live, key=lambda r: float((r.get("sale_price") or r["price"]).split()[0]))
+        pick = live[0]  # ürün sayfasının varsayılan gösterdiği (ilk stoktaki) varyant → fiyat sayfayla aynı
         r = {k: v for k, v in pick.items()
              if k not in ("group_id", "listing_has_variations", "variant_dict", "color", "size")}
         r["item_id"] = gid.lstrip("g")
@@ -227,6 +227,9 @@ def main():
     if len(products) < 10:  # Shopify geçici boş/eksik dönerse eski feed'i bozma
         sys.exit(f"Şüpheli az ürün ({len(products)}), feed güncellenmedi.")
     lines = [json.dumps(r, ensure_ascii=False, separators=(",", ":")) for r in per_product(rows(products))]
+    ids = [json.loads(l)["item_id"] for l in lines]
+    if len(set(ids)) != len(ids):
+        sys.exit("Tekrarlanan item_id var, feed güncellenmedi.")
     data = ("\n".join(lines) + "\n").encode("utf-8")
     OUT.mkdir(exist_ok=True)
     buf = io.BytesIO()
